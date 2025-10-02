@@ -1,14 +1,33 @@
 package game
 
 type Dealer struct {
-	shoe Shoe
+	shoe *Shoe
 	hand *DealerHand
 }
 
 func NewDealer(decks int) *Dealer {
-	return &Dealer{
-		shoe: NewShoe(decks),
-		hand: NewDealerHand(),
+	dealer := &Dealer{shoe: NewShoe(decks)}
+	dealer.hand = NewDealerHand(dealer)
+	return dealer
+}
+
+func (d *Dealer) DealRoundOfCards(hands []*PlayerHand) {
+	assert(len(hands) > 0, "no player hands to deal to")
+	assert(len(hands) <= TableSlotsCount, "cannot deal to more than %d hands", TableSlotsCount)
+
+	d.hand = NewDealerHand(d)
+
+	if d.shoe.lastHandPlayed {
+		d.shoe = NewShoe(len(d.shoe.cards) / DeckSize)
+	}
+
+	for range 2 {
+		for _, hand := range hands {
+			card := d.shoe.DrawCard()
+			hand.Hit(card)
+		}
+
+		d.hand.Hit()
 	}
 }
 
@@ -23,15 +42,16 @@ type DealerHand struct {
 	total  int
 }
 
-func NewDealerHand() *DealerHand {
+func NewDealerHand(dealer *Dealer) *DealerHand {
 	return &DealerHand{
-		cards: make([]*Card, 0, 11), // max 11 cards without busting (A,2,3,4,5,6)
-		total: 0,
+		cards:  make([]*Card, 0, MaxCardsInHand),
+		total:  0,
+		dealer: dealer,
 	}
 }
 
 func (dh *DealerHand) Busted() bool {
-	return dh.total > 21
+	return dh.total > TotalUpperLimit
 }
 
 func (dh *DealerHand) CalculateTotal() {
@@ -52,24 +72,20 @@ func (dh *DealerHand) HoleCard() *Card {
 func (dh *DealerHand) CheckForBlackjack() bool {
 	assert(len(dh.cards) == 2, "dealer must have exactly 2 cards to check for blackjack")
 	assert(dh.UpCard().rank >= Ten, "dealer's up card must be 10, J, Q, K, or A to check for blackjack")
-	return calculateHandTotal(dh.cards) == 21
+	return calculateHandTotal(dh.cards) == TotalUpperLimit
 }
 
 func (dh *DealerHand) PlayOutHand() {
-	assert(len(dh.dealer.shoe) > 0, "shoe is empty, cannot play out hand")
 	assert(len(dh.cards) == 2, "dealer must have exactly 2 cards to play out hand")
 	assert(!dh.Busted(), "dealer cannot play out a busted hand")
 
 	for dh.total < 17 {
-		dh.hit()
+		dh.Hit()
 	}
 }
 
-func (dh *DealerHand) hit() {
-	assert(len(dh.dealer.shoe) > 0, "shoe is empty, cannot hit")
-
-	card := dh.dealer.shoe[0]
-	dh.dealer.shoe = dh.dealer.shoe[1:]
-	dh.cards = append(dh.cards, &card)
+func (dh *DealerHand) Hit() {
+	card := dh.dealer.shoe.DrawCard()
+	dh.cards = append(dh.cards, card)
 	dh.CalculateTotal()
 }

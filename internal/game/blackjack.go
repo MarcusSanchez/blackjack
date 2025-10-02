@@ -1,8 +1,16 @@
 package game
 
-import assertgo "github.com/nikoksr/assert-go"
+import (
+	assertgo "github.com/nikoksr/assert-go"
+)
 
 var assert = assertgo.Assert
+
+const (
+	MaxCardsInHand  = 11 // max 11 cards without busting (generally)
+	TotalUpperLimit = 21
+	TableSlotsCount = 5 // max 5 starting hands at a table
+)
 
 type Blackjack struct {
 	dealer *Dealer
@@ -14,6 +22,13 @@ func NewBlackjack(decks int, money int) *Blackjack {
 		dealer: NewDealer(decks),
 		player: NewPlayer(money),
 	}
+}
+
+func (bj *Blackjack) StartNewRound(bet int, bets ...int) {
+	assert(1+len(bets) <= TableSlotsCount, "cannot place more than %d bets", TableSlotsCount)
+
+	hands := bj.player.PrepareHandsForNewRound(bet, bets...)
+	bj.dealer.DealRoundOfCards(hands)
 }
 
 func calculateHandTotal(cards []*Card) int {
@@ -29,7 +44,7 @@ func calculateHandTotal(cards []*Card) int {
 	}
 
 	for range aces {
-		if (total + 11) <= 21 {
+		if (total + 11) <= TotalUpperLimit {
 			total += 11
 			continue
 		}

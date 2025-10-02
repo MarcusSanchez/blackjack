@@ -1,10 +1,16 @@
 package game
 
-import "slices"
+import (
+	"slices"
+)
 
 type Player struct {
 	money int
 	hands []*PlayerHand
+}
+
+func (p *Player) Money() int {
+	return p.money
 }
 
 func NewPlayer(money int) *Player {
@@ -12,6 +18,20 @@ func NewPlayer(money int) *Player {
 		money: money,
 		hands: make([]*PlayerHand, 0, 8), // more than likely won't need more than 8 hands
 	}
+}
+
+func (p *Player) PrepareHandsForNewRound(bet int, bets ...int) []*PlayerHand {
+	assert(max(bet, bets...) <= p.money, "not enough money to place bets")
+	p.hands = make([]*PlayerHand, 0, 8)
+
+	bets = slices.Insert(bets, 0, bet)
+	for _, b := range bets {
+		assert(b > 0, "bet must be greater than 0")
+		NewPlayerHand(p, b)
+	}
+
+	p.SynchronizeHandIndices()
+	return p.hands
 }
 
 type PlayerHand struct {
@@ -24,7 +44,21 @@ type PlayerHand struct {
 	standing bool
 }
 
-func NewPlayerHand(player *Player, bet int, card1, card2 *Card, splitIdx ...int) *PlayerHand {
+func NewPlayerHand(player *Player, bet int) *PlayerHand {
+	assert(player.money >= bet, "not enough money to place bet")
+	player.money -= bet
+
+	hand := &PlayerHand{
+		player: player,
+		bet:    bet,
+	}
+	player.hands = append(player.hands, hand)
+	player.SynchronizeHandIndices()
+
+	return hand
+}
+
+func NewPlayerHandFromCards(player *Player, bet int, card1, card2 *Card, splitIdx ...int) *PlayerHand {
 	assert(player.money >= bet, "not enough money to place bet")
 	player.money -= bet
 
@@ -33,6 +67,8 @@ func NewPlayerHand(player *Player, bet int, card1, card2 *Card, splitIdx ...int)
 		cards:  []*Card{card1, card2},
 		bet:    bet,
 	}
+	hand.CalculateTotal()
+
 	if splitIdx != nil {
 		idx := splitIdx[0] + 1
 		assert(idx >= 0 && idx <= len(player.hands), "invalid split index")
@@ -40,8 +76,8 @@ func NewPlayerHand(player *Player, bet int, card1, card2 *Card, splitIdx ...int)
 	} else {
 		player.hands = append(player.hands, hand)
 	}
-
 	player.SynchronizeHandIndices()
+
 	return hand
 }
 
@@ -52,7 +88,7 @@ func (p *Player) SynchronizeHandIndices() {
 }
 
 func (ph *PlayerHand) Busted() bool {
-	return ph.total > 21
+	return ph.total > TotalUpperLimit
 }
 
 func (ph *PlayerHand) CalculateTotal() {
@@ -93,7 +129,7 @@ func (ph *PlayerHand) Split(card1, card2 *Card) {
 	assert(ph.player.money >= ph.bet, "not enough money to split")
 
 	ph.player.money -= ph.bet
-	hand := NewPlayerHand(ph.player, ph.bet, ph.cards[1], card2, ph.idx)
+	hand := NewPlayerHandFromCards(ph.player, ph.bet, ph.cards[1], card2, ph.idx)
 	hand.CalculateTotal()
 
 	ph.cards = []*Card{ph.cards[0], card1}

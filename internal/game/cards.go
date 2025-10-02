@@ -81,7 +81,7 @@ func (v Rank) Value() int {
 		return 10
 	}
 	if v == Ace {
-		return 11 // ace should be handled accordingly, not relying on this function
+		assert(false, "ace value is either 1 or 11, cannot determine single value") // dump stack for debugging
 	}
 	return 0
 }
